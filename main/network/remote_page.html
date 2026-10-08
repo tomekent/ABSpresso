@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ABSpresso">
+<meta name="theme-color" content="#101418">
+<title>ABSpresso</title>
+<style>
+:root{--bg:#101418;--card:#1e252c;--line:#2c353e;--text:#f2f2f2;--muted:#8c96a0;--accent:#f0a030;
+  --top:env(safe-area-inset-top,0px);--bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px -apple-system,system-ui,sans-serif}
+body{padding:calc(var(--top) + 8px) 16px calc(var(--bottom) + 84px)}
+main{max-width:480px;margin:0 auto}
+h1{font-size:20px;margin:6px 0 14px;display:flex;align-items:center;gap:8px}
+h1 small{font-size:13px;font-weight:400;color:var(--muted);margin-left:auto}
+.view[hidden]{display:none}
+#offline{background:#4a2a12;color:#ffd6a8;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+
+/* now playing */
+.np{text-align:center}
+.cover{width:220px;height:220px;max-width:70vw;max-height:70vw;margin:4px auto 16px;border-radius:14px;
+  background:var(--card);overflow:hidden;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:42px;font-weight:700;box-shadow:0 10px 30px #0008}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.np .title{font-size:20px;font-weight:650;margin:0 0 4px;line-height:1.25}
+.np .author{color:var(--muted);margin:0 0 6px}
+.np .chapter{color:var(--accent);font-size:14px;margin:0 0 14px;min-height:18px}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+.times{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin:4px 0 2px;
+  font-variant-numeric:tabular-nums}
+.total{font-size:12px;color:var(--muted);margin-bottom:12px}
+.controls{display:flex;align-items:center;justify-content:center;gap:10px;margin:6px 0 18px}
+.controls button{background:none;border:0;color:var(--text);width:52px;height:52px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;position:relative}
+.controls button:active{background:var(--card)}
+.controls svg{width:28px;height:28px;fill:currentColor}
+.controls .play{width:72px;height:72px;background:var(--accent);color:#000}
+.controls .play svg{width:34px;height:34px}
+.controls .skip span{position:absolute;font-size:10px;font-weight:700;top:20px}
+.vol{display:flex;align-items:center;gap:10px;color:var(--muted)}
+.vol svg{width:20px;height:20px;fill:currentColor;flex:none}
+.pill{margin:18px auto 0;display:flex;align-items:center;gap:8px;padding:9px 16px;border:1px solid var(--line);
+  border-radius:20px;background:none;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+.pill svg{width:18px;height:18px;fill:currentColor}
+.pill.on{color:var(--accent);border-color:var(--accent)}
+.sheet-bg{position:fixed;inset:0;background:#0009;display:flex;align-items:flex-end;justify-content:center;z-index:10}
+.sheet{background:var(--card);width:100%;max-width:480px;border-radius:16px 16px 0 0;
+  padding:8px 16px calc(var(--bottom) + 16px)}
+.sheet h3{font-size:15px;margin:10px 4px 8px;color:var(--muted);font-weight:600}
+.sheet button{display:block;width:100%;text-align:left;padding:14px 4px;border:0;border-bottom:1px solid var(--line);
+  background:none;color:var(--text);font-size:17px}
+.sheet button.sel{color:var(--accent)}
+.sheet button:last-child{border-bottom:0}
+.idle{color:var(--muted);padding:40px 0}
+.idle button{margin-top:14px}
+
+/* library */
+.tools{display:flex;gap:8px;margin-bottom:10px}
+input[type=search],select{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);
+  color:var(--text);font-size:16px;min-width:0}
+.tools select{flex:0 0 auto}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;gap:12px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.list li:active{background:var(--card)}
+.list li.now .t{color:var(--accent)}
+.thumb{width:52px;height:52px;border-radius:8px;background:var(--card);flex:none;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:700}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.meta{flex:1;min-width:0}
+.meta .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:550}
+.meta .a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:14px}
+.bar{height:3px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.empty{color:var(--muted);text-align:center;padding:30px 0;line-height:1.4}
+.section{font-size:13px;color:var(--accent);margin:18px 0 2px;text-transform:uppercase;letter-spacing:.05em}
+.dlb{flex:none;width:44px;height:44px;border:0;border-radius:50%;background:none;color:var(--muted);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.dlb svg{width:22px;height:22px;fill:currentColor}
+.dlb:active{background:var(--line)}
+.dlb.done{color:var(--accent)}
+.dlb.active,.dlb.queued{color:var(--text)}
+.dlb.error{color:#ff8a65}
+.dlb.removing{opacity:.4}
+.dlb.trash{color:var(--muted)}
+.dlb.trash:active{color:#ff8a65}
+
+/* settings */
+section{background:var(--card);border-radius:12px;padding:4px 14px;margin-bottom:14px}
+section h2{font-size:13px;color:var(--accent);margin:10px 0 2px;text-transform:uppercase;letter-spacing:.05em}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row>span:first-child{white-space:nowrap}
+.row.with-hint{flex-wrap:wrap}
+.hint{flex-basis:100%;margin:0;font-size:13px;color:var(--muted);line-height:1.4}
+#s-storage{text-align:right}
+.row select{flex:0 1 auto;background:var(--bg);padding:8px}
+.row input[type=range]{flex:0 1 55%}
+.switch{position:relative;width:50px;height:30px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;background:var(--line);border-radius:15px;transition:.2s}
+.switch span:before{content:"";position:absolute;width:26px;height:26px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked+span{background:var(--accent)}
+.switch input:checked+span:before{transform:translateX(20px)}
+.muted{color:var(--muted)}
+.note{font-size:13px;color:var(--muted);margin:0 0 14px;line-height:1.4}
+button.wide{width:100%;padding:12px;border:0;border-radius:10px;background:var(--card);color:var(--text);font-size:16px}
+
+/* tab bar + toast */
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:#161c22ee;backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding-bottom:var(--bottom)}
+nav button{flex:1;background:none;border:0;color:var(--muted);padding:8px 0 10px;font-size:11px;display:flex;
+  flex-direction:column;align-items:center;gap:3px}
+nav button svg{width:24px;height:24px;fill:currentColor}
+nav button[aria-selected=true]{color:var(--accent)}
+#toast{position:fixed;left:50%;bottom:calc(var(--bottom) + 76px);transform:translateX(-50%);background:#000c;color:#fff;
+  padding:8px 14px;border-radius:18px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<main>
+  <div id="offline" hidden>Can't reach ABSpresso. It may be asleep: touch its screen or press BOOT to wake it.</div>
+
+  <!-- Now Playing -->
+  <div class="view" id="v-playing">
+    <div class="np" id="np" hidden>
+      <div class="cover" id="np-cover"></div>
+      <p class="title" id="np-title"></p>
+      <p class="author" id="np-author"></p>
+      <p class="chapter" id="np-chapter"></p>
+      <input type="range" id="scrub" min="0" max="1" step="1" value="0" aria-label="Position">
+      <div class="times"><span id="t-pos">0:00</span><span id="t-left">-0:00</span></div>
+      <div class="total" id="t-total"></div>
+      <div class="controls">
+        <button id="b-prev" aria-label="Previous chapter"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
+        <button class="skip" id="b-back" aria-label="Skip back"><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg><span id="s-back"></span></button>
+        <button class="play" id="b-play" aria-label="Play or pause"><svg viewBox="0 0 24 24" id="i-play"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="skip" id="b-fwd" aria-label="Skip forward"><svg viewBox="0 0 24 24"><path d="M12 5V1l5 5-5 5V7a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8z"/></svg><span id="s-fwd"></span></button>
+        <button id="b-next" aria-label="Next chapter"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+      </div>
+      <div class="vol">
+        <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3z"/></svg>
+        <input type="range" id="vol" min="0" max="100" step="1" aria-label="Volume">
+        <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+      </div>
+      <button class="pill" id="b-sleep"><svg viewBox="0 0 24 24"><path d="M12.3 2a9 9 0 1 0 9.7 11.6A7.5 7.5 0 0 1 12.3 2z"/></svg><span id="sleep-text">Sleep timer</span></button>
+    </div>
+    <div class="np idle" id="idle" hidden>
+      <div class="cover">&#9749;</div>
+      <p>Nothing playing.</p>
+      <button class="wide" id="b-resume">Resume latest book</button>
+    </div>
+  </div>
+
+  <!-- Library -->
+  <div class="view" id="v-library" hidden>
+    <h1>Library <small id="lib-count"></small></h1>
+    <div class="tools">
+      <input type="search" id="q" placeholder="Search titles and authors" autocomplete="off">
+      <select id="sort" aria-label="Sort">
+        <option value="recent">Recent</option>
+        <option value="az">A-Z</option>
+        <option value="added">Added</option>
+      </select>
+    </div>
+    <ul class="list" id="books"></ul>
+  </div>
+
+  <!-- Downloads -->
+  <div class="view" id="v-downloads" hidden>
+    <h1>Downloads <small id="dl-space"></small></h1>
+    <div id="dl-lists"></div>
+  </div>
+
+  <!-- Settings -->
+  <div class="view" id="v-settings" hidden>
+    <h1>Settings</h1>
+    <section>
+      <h2>Library</h2>
+      <div class="row"><span>Library</span><select id="s-library"></select></div>
+    </section>
+    <section>
+      <h2>Playback</h2>
+      <div class="row"><span>Skip back</span><select id="s-skip_back_s"></select></div>
+      <div class="row"><span>Skip forward</span><select id="s-skip_fwd_s"></select></div>
+    </section>
+    <section>
+      <h2>Screen</h2>
+      <div class="row"><span>Brightness</span><select id="s-brightness"></select></div>
+      <div class="row"><span>Screen off after</span><select id="s-screen_off_s"></select></div>
+      <div class="row with-hint"><span>Sleep after screen off</span><select id="s-sleep_min"></select>
+        <p class="hint">When nothing is playing or downloading, the device then goes into deep sleep to
+          save battery. It drops off Wi-Fi, so this page can't reach it until you touch its screen or
+          press BOOT.</p></div>
+      <div class="row"><span>Upside down</span><label class="switch"><input type="checkbox" id="s-rotate180"><span></span></label></div>
+    </section>
+    <section>
+      <h2>Storage</h2>
+      <div class="row"><span>SD card</span><span id="s-storage" class="muted">-</span></div>
+    </section>
+    <p class="note">Wi-Fi and Audiobookshelf sign-in are changed on the device: Settings, Server, Wi-Fi &amp; login setup.</p>
+  </div>
+</main>
+
+<nav role="tablist">
+  <button role="tab" data-v="playing" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm-2 13V8l6 4z"/></svg>Playing</button>
+  <button role="tab" data-v="library"><svg viewBox="0 0 24 24"><path d="M4 4h4v16H4zm6 0h4v16h-4zm5.3 1.2 3.9-1 3.9 15.5-3.9 1z"/></svg>Library</button>
+  <button role="tab" data-v="downloads"><svg viewBox="0 0 24 24"><path d="M11 3h2v10.2l3.6-3.6L18 11l-6 6-6-6 1.4-1.4 3.6 3.6zM4 19h16v2H4z"/></svg>Downloads</button>
+  <button role="tab" data-v="settings"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L11 21h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>Settings</button>
+</nav>
+<div id="toast"></div>
+<div class="sheet-bg" id="sleep-sheet" hidden>
+  <div class="sheet" role="dialog" aria-label="Sleep timer">
+    <h3>Pause playback after</h3>
+    <div id="sleep-options"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let st = null, books = null, view = 'playing', dragging = false, volTimer = 0, volUntil = 0;
+
+async function api(path, post) {
+  const r = await fetch(path, post ? {method: 'POST'} : {});
+  if (!r.ok) throw new Error((await r.text()) || r.statusText);
+  return r.json();
+}
+const post = path => api(path, true).catch(e => { toast(e.message); throw e; });
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t.timer);
+  t.timer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function fmt(s) {
+  s = Math.max(0, Math.floor(s || 0));
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${x}` : `${m}:${x}`;
+}
+function fmtLong(s) {
+  const h = Math.floor(s / 3600), m = Math.round(s / 60) % 60;
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+function initials(t) {
+  return (t || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+// Covers load two at a time, and only once their row is near the screen: a burst of requests
+// competes with the device's audio stream.
+const coverQueue = [];
+let coversLoading = 0;
+function nextCover() {
+  while (coversLoading < 2 && coverQueue.length) {
+    const [el, id] = coverQueue.shift();
+    if (!el.isConnected) continue;
+    coversLoading++;
+    // Try the Audiobookshelf server first (sharper, and spares the device), then the device's
+    // SD card cache; the initials stay if neither has one.
+    const sources = coverSources(id, el.dataset.size || 200);
+    const img = new Image();
+    img.alt = '';
+    let settled = false;
+    const done = () => { if (!settled) { settled = true; coversLoading--; nextCover(); } };
+    img.onload = () => { el.textContent = ''; el.appendChild(img); done(); };
+    img.onerror = () => {
+      sources.shift();
+      if (sources.length) img.src = sources[0];
+      else done();
+    };
+    img.src = sources[0];
+  }
+}
+const coverSeen = new IntersectionObserver(entries => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    coverSeen.unobserve(e.target);
+    coverQueue.push([e.target, e.target.dataset.cover]);
+  }
+  nextCover();
+}, {rootMargin: '300px'});
+let server = '';
+function coverSources(id, size) {
+  const list = [];
+  if (server) list.push(`${server}/api/items/${encodeURIComponent(id)}/cover?width=${size}&format=jpeg`);
+  list.push('/api/cover?id=' + encodeURIComponent(id));
+  return list;
+}
+function coverInto(el, id, title, size) {
+  if (size) el.dataset.size = size;
+  el.textContent = initials(title);
+  if (!id) return;
+  el.dataset.cover = id;
+  coverSeen.observe(el);
+}
+
+/* ---------- now playing ---------- */
+
+const PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
+let coverId = '';
+
+function span() {
+  // The scrubber covers the chapter when the book has chapters, like the device does.
+  const ch = st.chapter_count > 0 && st.chapter_end > st.chapter_start;
+  return ch ? [st.chapter_start, st.chapter_end] : [0, st.duration];
+}
+
+function renderStatus() {
+  const active = st && st.id && !['idle', 'error'].includes(st.state);
+  $('np').hidden = !active;
+  $('idle').hidden = active;
+  if (!active) return;
+  if (coverId !== st.id) {
+    coverId = st.id;
+    coverInto($('np-cover'), st.id, st.title, 480);
+  }
+  $('np-title').textContent = st.title;
+  $('np-author').textContent = st.author;
+  // Chapter titles often don't match their position (an intro counts too), so show both.
+  $('np-chapter').textContent = st.chapter_count > 0
+    ? `${st.chapter || 'Chapter'} · ${st.chapter_index + 1}\u00a0of\u00a0${st.chapter_count}` : '';
+  const [a, b] = span();
+  if (!dragging) {
+    $('scrub').max = Math.max(1, Math.round(b - a));
+    $('scrub').value = Math.round(st.position - a);
+    $('t-pos').textContent = fmt(st.position - a);
+    $('t-left').textContent = '-' + fmt(b - st.position);
+  }
+  const pct = st.duration ? Math.round(100 * st.position / st.duration) : 0;
+  $('t-total').textContent = st.duration
+    ? `${pct}% of the book, ${fmtLong(st.duration - st.position)} left` : '';
+  const playing = st.state === 'playing' || st.state === 'buffering' || st.state === 'loading';
+  $('i-play').innerHTML = playing ? PAUSE : PLAY;
+  $('b-play').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  $('s-back').textContent = st.skip_back;
+  $('s-fwd').textContent = st.skip_fwd;
+  if (Date.now() > volUntil) $('vol').value = st.volume;
+  renderSleep();
+  const li = document.querySelectorAll('#books li');
+  li.forEach(el => el.classList.toggle('now', el.dataset.id === st.id));
+}
+
+async function poll() {
+  try {
+    st = await api('/api/status');
+    server = (st.server || '').replace(/\/+$/, '');
+    $('offline').hidden = true;
+    renderStatus();
+  } catch (e) {
+    $('offline').hidden = false;
+  }
+}
+
+$('b-play').onclick = () => post('/api/toggle').then(poll);
+$('b-resume').onclick = () => post('/api/toggle').then(poll);
+$('b-back').onclick = () => post('/api/skip?dir=-1').then(poll);
+$('b-fwd').onclick = () => post('/api/skip?dir=1').then(poll);
+$('b-prev').onclick = () => post('/api/chapter?d=-1').then(poll);
+$('b-next').onclick = () => post('/api/chapter?d=1').then(poll);
+
+const scrub = $('scrub');
+scrub.addEventListener('input', () => {
+  dragging = true;
+  const [a, b] = span();
+  $('t-pos').textContent = fmt(+scrub.value);
+  $('t-left').textContent = '-' + fmt(b - a - scrub.value);
+});
+scrub.addEventListener('change', () => {
+  const [a] = span();
+  post('/api/seek?to=' + Math.round(a + +scrub.value)).finally(() => { dragging = false; poll(); });
+});
+
+$('vol').addEventListener('input', e => {
+  volUntil = Date.now() + 1500;  // don't let a poll move the slider under the finger
+  clearTimeout(volTimer);
+  volTimer = setTimeout(() => post('/api/volume?v=' + e.target.value), 120);
+});
+
+/* ---------- sleep timer ---------- */
+
+const SLEEP_CHOICES = [[15, '15 minutes'], [30, '30 minutes'], [45, '45 minutes'], [60, '1 hour'],
+                       [-1, 'End of chapter'], [0, 'Off']];
+
+function renderSleep() {
+  const on = st.sleep && st.sleep !== 'off';
+  $('b-sleep').classList.toggle('on', on);
+  $('sleep-text').textContent = st.sleep === 'timer' ? `Sleep in ${fmt(st.sleep_left)}`
+    : st.sleep === 'chapter' ? `Sleep at chapter end (${fmt(st.sleep_left)})` : 'Sleep timer';
+}
+
+$('b-sleep').onclick = () => {
+  const box = $('sleep-options');
+  box.textContent = '';
+  for (const [m, label] of SLEEP_CHOICES) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if ((m === 0 && st.sleep === 'off') || (m === -1 && st.sleep === 'chapter')) b.className = 'sel';
+    b.onclick = e => {
+      e.stopPropagation();
+      $('sleep-sheet').hidden = true;
+      post('/api/sleep?min=' + m).then(() => {
+        toast(m === 0 ? 'Sleep timer off' : m < 0 ? 'Pausing at the end of the chapter' : `Pausing in ${label}`);
+        poll();
+      });
+    };
+    box.appendChild(b);
+  }
+  $('sleep-sheet').hidden = false;
+};
+$('sleep-sheet').onclick = e => { if (e.target.id === 'sleep-sheet') $('sleep-sheet').hidden = true; };
+
+/* ---------- library ---------- */
+
+async function fetchBooks(force) {
+  if (!st) await poll();  // covers come from the server named in the status
+  if (books && !force) return true;
+  try {
+    sdCard = (await api('/api/downloads')).sd;
+    books = await api('/api/books');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function loadBooks(force) {
+  if (!await fetchBooks(force)) {
+    $('books').innerHTML = '<li class="empty">Couldn\'t load the library.</li>';
+    return;
+  }
+  renderBooks();
+  pollDownloads();
+}
+
+async function loadDownloads() {
+  if (!await fetchBooks(false)) {
+    $('dl-lists').innerHTML = '<p class="empty">Couldn\'t reach the device.</p>';
+    return;
+  }
+  pollDownloads();
+}
+
+// One book as a list row: cover, title, author and progress, a download button, tap to play.
+// `downloading` shows the download's progress instead of the listening progress.
+function bookRow(b, downloading, manage) {
+  const li = document.createElement('li');
+  li.dataset.id = b.id;
+  if (st && st.id === b.id) li.className = 'now';
+  const th = document.createElement('div');
+  th.className = 'thumb';
+  coverInto(th, b.id, b.title, 160);
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  const t = document.createElement('div');
+  t.className = 't';
+  t.textContent = b.title;
+  const a = document.createElement('div');
+  a.className = 'a';
+  let pct = b.progress > 0 && !b.finished ? Math.round(b.progress * 100) : 0;
+  if (downloading) {
+    const label = {active: `Downloading, ${b.dl_pct}%`, queued: 'Waiting to download',
+                   error: 'Download failed, tap the button to retry', removing: 'Removing'}[b.dl] || '';
+    a.textContent = label;
+    pct = b.dl === 'active' ? b.dl_pct : 0;
+  } else {
+    a.textContent = b.finished ? `${b.author} · Finished` : pct ? `${b.author} · ${pct}%` : b.author;
+  }
+  meta.append(t, a);
+  if (pct) {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.innerHTML = `<i style="width:${pct}%"></i>`;
+    meta.appendChild(bar);
+  }
+  li.append(th, meta);
+  if (!b.podcast && sdCard) {
+    const btn = document.createElement('button');
+    btn.className = 'dlb';
+    btn.onclick = e => { e.stopPropagation(); onDownload(b); };
+    li.appendChild(btn);
+    renderDl(btn, b, manage);
+  }
+  li.onclick = () => post('/api/play?id=' + encodeURIComponent(b.id)).then(() => {
+    toast(b.podcast ? 'Opened on the device' : 'Playing ' + b.title);
+    show('playing');
+    setTimeout(poll, 600);
+  });
+  return li;
+}
+
+function renderBooks() {
+  const q = $('q').value.trim().toLowerCase();
+  const sort = $('sort').value;
+  let list = books.filter(b => !q || (b.title + ' ' + b.author).toLowerCase().includes(q));
+  if (sort === 'recent') {
+    const started = b => b.updated && !b.finished ? b.updated : 0;
+    list = list.slice().sort((x, y) => started(y) - started(x));  // stable: the rest stay A-Z
+  } else if (sort === 'added') {
+    list = list.slice().sort((x, y) => y.added - x.added);
+  }
+  $('lib-count').textContent = `${books.length} title${books.length === 1 ? '' : 's'}`;
+  const ul = $('books');
+  ul.textContent = '';
+  if (!list.length) {
+    ul.innerHTML = `<li class="empty">${books.length ? 'No matches.' : 'The library is empty.'}</li>`;
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const b of list) frag.appendChild(bookRow(b, false));
+  ul.appendChild(frag);
+}
+
+function renderDownloads(d) {
+  $('dl-space').textContent = d.sd ? `${gb(d.free)} free` : '';
+  const box = $('dl-lists');
+  box.textContent = '';
+  if (!d.sd) {
+    box.innerHTML = '<p class="empty">No SD card. Downloads need a FAT-formatted microSD card in the device.</p>';
+    return;
+  }
+  const order = {active: 0, queued: 1, error: 2, removing: 3};
+  const busy = books.filter(b => b.dl in order).sort((x, y) => order[x.dl] - order[y.dl]);
+  const saved = books.filter(b => b.dl === 'done');
+  if (!busy.length && !saved.length) {
+    box.innerHTML = '<p class="empty">Nothing downloaded yet.<br>Tap the arrow next to a book in the Library to save it to the SD card for offline listening.</p>';
+    return;
+  }
+  for (const [title, list, downloading] of [['Downloading', busy, true], ['On this device', saved, false]]) {
+    if (!list.length) continue;
+    const h = document.createElement('div');
+    h.className = 'section';
+    h.textContent = title;
+    const ul = document.createElement('ul');
+    ul.className = 'list';
+    for (const b of list) ul.appendChild(bookRow(b, downloading, true));
+    box.append(h, ul);
+  }
+}
+$('q').addEventListener('input', () => books && renderBooks());
+$('sort').addEventListener('change', () => books && renderBooks());
+
+/* ---------- downloads ---------- */
+
+const DL_ICON = '<svg viewBox="0 0 24 24"><path d="M11 4h2v9.2l3.6-3.6L18 11l-6 6-6-6 1.4-1.4 3.6 3.6zM5 19h14v2H5z"/></svg>';
+const DONE_ICON = '<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-2 15-5-5 1.4-1.4 3.6 3.6 7.6-7.6L19 8z"/></svg>';
+const TRASH_ICON = '<svg viewBox="0 0 24 24"><path d="M9 3h6l1 1h4v2H4V4h4zM6 8h12l-1 13H7zm4 2v9h1.5v-9zm2.5 0v9H14v-9z"/></svg>';
+const CANCEL_ICON = '<svg viewBox="0 0 24 24"><path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6 10.6 12 5 6.4z"/></svg>';
+const RETRY_ICON = '<svg viewBox="0 0 24 24"><path d="M17.7 6.3A8 8 0 1 0 19.9 13h-2.1a6 6 0 1 1-1.4-5.3L13 11h7V4z"/></svg>';
+let sdCard = true, dlTimer = 0;
+
+// `manage` (the Downloads tab) shows what a tap does: delete a saved copy, cancel a download.
+// The Library shows the state instead.
+function renderDl(btn, b, manage) {
+  const state = b.dl || 'none';
+  btn.className = 'dlb ' + state;
+  btn.disabled = state === 'removing';
+  if (manage && state === 'done') {
+    btn.className = 'dlb trash';
+    btn.innerHTML = TRASH_ICON;
+    btn.setAttribute('aria-label', 'Delete from the device');
+  } else if (manage && (state === 'active' || state === 'queued')) {
+    btn.innerHTML = CANCEL_ICON;
+    btn.setAttribute('aria-label', 'Cancel download');
+  } else if (state === 'active') {
+    btn.textContent = `${b.dl_pct}%`;
+    btn.setAttribute('aria-label', `Downloading, ${b.dl_pct}%. Tap to cancel`);
+  } else if (state === 'queued') {
+    btn.textContent = '...';
+    btn.setAttribute('aria-label', 'Queued. Tap to cancel');
+  } else if (state === 'done') {
+    btn.innerHTML = DONE_ICON;
+    btn.setAttribute('aria-label', 'Downloaded. Tap to delete');
+  } else if (state === 'error') {
+    btn.innerHTML = RETRY_ICON;
+    btn.setAttribute('aria-label', 'Download failed. Tap to retry');
+  } else {
+    btn.innerHTML = DL_ICON;
+    btn.setAttribute('aria-label', 'Download to the SD card');
+  }
+}
+
+async function onDownload(b) {
+  const state = b.dl || 'none';
+  if (state === 'none' || state === 'error') {
+    await post('/api/download?id=' + encodeURIComponent(b.id));
+    toast('Downloading ' + b.title);
+  } else if (state === 'done') {
+    if (!confirm(`Delete "${b.title}" from the device? It stays in your Audiobookshelf library and can be downloaded again.`)) return;
+    await post('/api/download?remove=1&id=' + encodeURIComponent(b.id));
+    toast('Deleted');
+  } else if (state === 'active' || state === 'queued') {
+    if (!confirm(`Cancel downloading "${b.title}"?`)) return;
+    await post('/api/download?remove=1&id=' + encodeURIComponent(b.id));
+    toast('Cancelled');
+  }
+  pollDownloads();
+}
+
+// Refreshes download states in place (keeps the list's scroll position), then checks again
+// soon while anything is in progress.
+async function pollDownloads() {
+  clearTimeout(dlTimer);
+  let d;
+  try { d = await api('/api/downloads'); } catch (e) { return; }
+  sdCard = d.sd;
+  if (!books) return;
+  const byId = new Map(d.items.map(i => [i.id, i]));
+  for (const b of books) {
+    const i = byId.get(b.id);
+    b.dl = i ? i.dl : 'none';
+    b.dl_pct = i ? i.dl_pct : 0;
+  }
+  if (view === 'downloads') {
+    renderDownloads(d);
+  } else {
+    const map = new Map(books.map(b => [b.id, b]));
+    for (const li of document.querySelectorAll('#books li[data-id]')) {
+      const btn = li.querySelector('.dlb');
+      if (btn) renderDl(btn, map.get(li.dataset.id));
+    }
+  }
+  const busy = d.items.some(i => i.dl === 'active' || i.dl === 'queued' || i.dl === 'removing');
+  if ((view === 'library' || view === 'downloads') && document.visibilityState === 'visible') {
+    dlTimer = setTimeout(pollDownloads, busy ? 2000 : 10000);
+  }
+}
+
+function gb(bytes) {
+  return (bytes / 1e9).toFixed(bytes < 1e10 ? 1 : 0) + ' GB';
+}
+
+/* ---------- settings ---------- */
+
+const CHOICES = {
+  brightness: [[20, '20%'], [40, '40%'], [60, '60%'], [80, '80%'], [100, '100%']],
+  screen_off_s: [[30, '30 s'], [60, '1 min'], [120, '2 min'], [300, '5 min'], [0, 'Never']],
+  sleep_min: [[5, '5 min'], [10, '10 min'], [30, '30 min'], [0, 'Never']],
+  skip_back_s: [[10, '10 s'], [15, '15 s'], [30, '30 s'], [60, '60 s']],
+  skip_fwd_s: [[10, '10 s'], [15, '15 s'], [30, '30 s'], [60, '60 s']],
+};
+
+function fill(sel, options, value) {
+  sel.textContent = '';
+  if (!options.some(o => String(o[0]) === String(value))) options = [[value, String(value)], ...options];
+  for (const [v, label] of options) sel.add(new Option(label, v, false, String(v) === String(value)));
+}
+
+async function loadSettings() {
+  let s;
+  try { s = await api('/api/settings'); } catch (e) { return; }
+  for (const k in CHOICES) fill($('s-' + k), CHOICES[k], s[k]);
+  $('s-rotate180').checked = s.rotate180;
+  fill($('s-library'), s.libraries.map(l => [l.id, l.name]), s.library);
+  $('s-library').disabled = s.libraries.length < 2;
+  try {
+    const d = await api('/api/downloads');
+    const saved = d.items.filter(i => i.dl === 'done').length;
+    $('s-storage').textContent = d.sd
+      ? `${gb(d.free)} free of ${gb(d.total)}, ${saved} book${saved === 1 ? '' : 's'} saved` : 'No card';
+  } catch (e) {}
+}
+
+for (const k in CHOICES) {
+  $('s-' + k).addEventListener('change', e =>
+    post(`/api/settings?${k}=${e.target.value}`).then(() => toast('Saved')));
+}
+$('s-rotate180').addEventListener('change', e =>
+  post('/api/settings?rotate180=' + (e.target.checked ? 1 : 0)).then(() => toast('Saved')));
+$('s-library').addEventListener('change', e =>
+  post('/api/library?id=' + encodeURIComponent(e.target.value)).then(() => {
+    toast('Switching library...');
+    books = null;
+    setTimeout(() => loadBooks(true), 4000);  // the device reloads it in the background
+  }));
+
+/* ---------- tabs and polling ---------- */
+
+const TABS = ['playing', 'library', 'downloads', 'settings'];
+function show(v) {
+  view = v;
+  for (const b of document.querySelectorAll('nav button')) b.setAttribute('aria-selected', b.dataset.v === v);
+  for (const name of TABS) $('v-' + name).hidden = name !== v;
+  clearTimeout(dlTimer);
+  if (v === 'library') loadBooks();
+  if (v === 'downloads') loadDownloads();
+  if (v === 'settings') loadSettings();
+  if (v === 'playing') poll();
+}
+for (const b of document.querySelectorAll('nav button')) b.onclick = () => show(b.dataset.v);
+
+setInterval(() => { if (document.visibilityState === 'visible') poll(); }, 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') poll(); });
+const start = location.hash.slice(1);  // #library or #settings opens that tab
+show(TABS.includes(start) ? start : 'playing');
+</script>
+</body>
+</html>

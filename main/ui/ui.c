@@ -138,6 +138,20 @@ int ui_find_book(const char *item_id)
     return -1;
 }
 
+int ui_book_list(const abs_book_t **books)
+{
+    *books = g_books;
+    return g_book_count;
+}
+
+bool ui_play_item(const char *item_id)
+{
+    const int i = ui_find_book(item_id);
+    if (i < 0) return false;
+    ui_play_book(i);
+    return true;
+}
+
 lv_obj_t *ui_add_book_row(lv_obj_t *list, int book_index)
 {
     const abs_book_t *b = &g_books[book_index];

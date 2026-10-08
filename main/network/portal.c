@@ -18,6 +18,7 @@
 #include "lwip/sockets.h"
 #include "nvs.h"
 #include "portal_page.h"
+#include "remote.h"
 #include "power.h"
 #include "wifi.h"
 
@@ -322,6 +323,7 @@ static void apply_task(void *arg)
 void portal_start(void)
 {
     if (s_active) return;
+    remote_stop();  // the setup page takes over port 80
     if (!s_lock) s_lock = xSemaphoreCreateMutex();
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
@@ -372,6 +374,7 @@ void portal_stop(void)
     s_dns_stop = true;
     wifi_stop_ap();
     s_active = false;
+    remote_start();
 }
 
 bool portal_active(void)

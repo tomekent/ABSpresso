@@ -285,6 +285,17 @@ void settings_refresh(void)
     else refresh_device();
 }
 
+void ui_settings_changed(void)
+{
+    settings_refresh();
+}
+
+void ui_set_rotation(bool rotate180)
+{
+    if (rotate180 != s_rotated) apply_rotation(rotate180, true);
+    settings_refresh();
+}
+
 /* ---------- build ---------- */
 
 static lv_obj_t *make_view(lv_obj_t *page)

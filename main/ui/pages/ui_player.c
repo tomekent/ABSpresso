@@ -11,6 +11,7 @@
 static lv_obj_t *s_backdrop, *s_arc, *s_vol_arc, *s_title, *s_chapter, *s_state, *s_play_label, *s_time, *s_remaining;
 static const lv_image_dsc_t *s_backdrop_src;
 static lv_obj_t *s_skip_lbl[2];  // -N / +N on the skip buttons
+static lv_obj_t *s_sleep_lbl;     // sleep timer button: "Zz", or the minutes left
 static bool s_arc_dragging, s_vol_dragging;
 static uint32_t s_state_override_until;
 static int s_resume = -1;  // book offered for resume while the player is idle
@@ -101,6 +102,34 @@ static void on_skip(lv_event_t *e)
     snprintf(buf, sizeof(buf), "%+d s", s);
     flash_state(buf);
 }
+// Each tap moves to the next sleep timer choice: off, 15, 30, 45, 60 min, end of chapter, off.
+// The step comes from the player's state, so a timer set from the remote carries on from there:
+// a running timer moves to the first choice longer than the minutes left.
+static int next_sleep_choice(const player_status_t *st)
+{
+    static const int MINUTES[] = {15, 30, 45, 60};
+    if (st->sleep_mode == PLAYER_SLEEP_CHAPTER) return 0;
+    if (st->sleep_mode == PLAYER_SLEEP_OFF) return MINUTES[0];
+    const int left = (int)(st->sleep_left + 59) / 60;
+    for (int i = 0; i < sizeof(MINUTES) / sizeof(MINUTES[0]); i++) {
+        if (MINUTES[i] > left) return MINUTES[i];
+    }
+    return PLAYER_SLEEP_END_OF_CHAPTER;
+}
+
+static void on_sleep(lv_event_t *e)
+{
+    player_status_t st;
+    player_get_status(&st);
+    const int m = next_sleep_choice(&st);
+    player_set_sleep(m);
+    char buf[40];
+    if (m == 0) snprintf(buf, sizeof(buf), "Sleep timer off");
+    else if (m < 0) snprintf(buf, sizeof(buf), "Sleep at the end of the chapter");
+    else snprintf(buf, sizeof(buf), "Sleep in %d min", m);
+    flash_state(buf);
+}
+
 static void on_prev_ch(lv_event_t *e) { player_chapter_step(-1); flash_state("Previous chapter"); }
 static void on_next_ch(lv_event_t *e) { player_chapter_step(1); flash_state("Next chapter"); }
 
@@ -228,8 +257,22 @@ void playing_refresh(void)
         case PLAYER_ERROR:     msg = "Stream error - tap " LV_SYMBOL_PLAY " to retry"; break;
         default: break;
         }
+        char sleep_msg[40];
+        if (!msg[0] && st.sleep_mode == PLAYER_SLEEP_TIMER) {
+            snprintf(sleep_msg, sizeof(sleep_msg), "Sleep in %d min", (int)(st.sleep_left + 59) / 60);
+            msg = sleep_msg;
+        } else if (!msg[0] && st.sleep_mode == PLAYER_SLEEP_CHAPTER) {
+            msg = "Sleep at the end of the chapter";
+        }
         set_text(s_state, msg);
     }
+
+    char sl[16];
+    if (st.sleep_mode == PLAYER_SLEEP_TIMER) snprintf(sl, sizeof(sl), "%dm", (int)(st.sleep_left + 59) / 60);
+    else if (st.sleep_mode == PLAYER_SLEEP_CHAPTER) snprintf(sl, sizeof(sl), "Ch");
+    else snprintf(sl, sizeof(sl), "Zz");
+    set_text(s_sleep_lbl, sl);
+    lv_obj_set_style_text_color(s_sleep_lbl, st.sleep_mode != PLAYER_SLEEP_OFF ? COLOR_ACCENT : COLOR_TEXT, 0);
 
     if (st.duration > 0) {
         double ch_len = st.chapter_end - st.chapter_start;
@@ -337,8 +380,12 @@ void playing_build(lv_obj_t *page)
     s_remaining = ui_label(page, &ui_font_14, COLOR_MUTED, 220);
     lv_obj_align(s_remaining, LV_ALIGN_CENTER, 0, 79);
 
+    // Bottom row: previous chapter, sleep timer, next chapter (outer edges stay within r ~150).
     lv_obj_t *prev = ui_round_button(page, 38, LV_SYMBOL_PREV, &ui_font_16, on_prev_ch, NULL);
-    lv_obj_align(prev, LV_ALIGN_CENTER, -30, 114);
+    lv_obj_align(prev, LV_ALIGN_CENTER, -52, 114);
+    lv_obj_t *sleep = ui_round_button(page, 38, "Zz", &ui_font_14, on_sleep, NULL);
+    lv_obj_align(sleep, LV_ALIGN_CENTER, 0, 114);
+    s_sleep_lbl = lv_obj_get_child(sleep, 0);
     lv_obj_t *next = ui_round_button(page, 38, LV_SYMBOL_NEXT, &ui_font_16, on_next_ch, NULL);
-    lv_obj_align(next, LV_ALIGN_CENTER, 30, 114);
+    lv_obj_align(next, LV_ALIGN_CENTER, 52, 114);
 }

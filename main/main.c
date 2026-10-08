@@ -16,6 +16,7 @@
 #include "catalog.h"
 #include "config.h"
 #include "portal.h"
+#include "remote.h"
 #include "download.h"
 #include "esp_timer.h"
 #include "ui.h"
@@ -57,6 +58,7 @@ void app_main(void)
     player_init();
     download_init();
     wifi_start();
+    remote_start();  // serves on whatever network the station joins
 
     catalog_init();
     if (!config_complete()) {

@@ -44,6 +44,7 @@ typedef enum {
     CMD_SEEK_ABS,
     CMD_CHAPTER,
     CMD_STOP,
+    CMD_SLEEP,
 } cmd_type_t;
 
 typedef struct {
@@ -569,6 +570,103 @@ static void seek_to(double t)
     set_state(s_paused ? PLAYER_PAUSED : PLAYER_BUFFERING);
 }
 
+/* ---------- sleep timer ---------- */
+
+#define SLEEP_FADE_S 10.0  // volume fades out over the last seconds before pausing
+
+// Control task only. In timer mode s_sleep_left counts down while audio plays; in chapter mode
+// the target is the chapter playing when it was set (or after a seek, the one seeked to).
+static int s_sleep_mode = PLAYER_SLEEP_OFF;
+static double s_sleep_left;
+static int s_sleep_chapter;
+static double s_sleep_last_pos;
+static bool s_sleep_faded;
+
+static void sleep_restore_volume(void)
+{
+    if (!s_sleep_faded) return;
+    s_sleep_faded = false;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    const int v = s_status.volume;
+    xSemaphoreGive(s_lock);
+    board_audio_set_volume(v);
+}
+
+static void sleep_publish(void)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_status.sleep_mode = s_sleep_mode;
+    s_status.sleep_left = s_sleep_mode == PLAYER_SLEEP_CHAPTER
+                              ? (s_status.chapter_end > s_status.position ? s_status.chapter_end - s_status.position : 0)
+                              : s_sleep_left;
+    xSemaphoreGive(s_lock);
+}
+
+static void sleep_set(int minutes)
+{
+    sleep_restore_volume();
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_sleep_chapter = s_status.chapter_index;
+    s_sleep_last_pos = s_status.position;
+    xSemaphoreGive(s_lock);
+    if (minutes == PLAYER_SLEEP_END_OF_CHAPTER) {
+        s_sleep_mode = PLAYER_SLEEP_CHAPTER;
+    } else if (minutes > 0) {
+        s_sleep_mode = PLAYER_SLEEP_TIMER;
+        s_sleep_left = minutes * 60.0;
+    } else {
+        s_sleep_mode = PLAYER_SLEEP_OFF;
+        s_sleep_left = 0;
+    }
+    ESP_LOGI(TAG, "sleep timer: %d", minutes);
+    sleep_publish();
+}
+
+static void sleep_tick(player_state_t st, double dt)
+{
+    if (s_sleep_mode == PLAYER_SLEEP_OFF) return;
+    if (st == PLAYER_FINISHED || st == PLAYER_IDLE) {
+        sleep_set(0);  // nothing left to pause (e.g. the book ended before the chapter timer fired)
+        return;
+    }
+    if (st != PLAYER_PLAYING) {
+        sleep_restore_volume();  // paused during the fade: come back at full volume
+        sleep_publish();
+        return;
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    const double pos = s_status.position, end = s_status.chapter_end;
+    const int ci = s_status.chapter_index;
+    const int volume = s_status.volume;
+    xSemaphoreGive(s_lock);
+
+    double left;
+    if (s_sleep_mode == PLAYER_SLEEP_TIMER) {
+        s_sleep_left -= dt;
+        left = s_sleep_left;
+    } else {
+        // A jump (skip, seek, chapter button) retargets to wherever playback went; only playing
+        // on into the next chapter counts as reaching the end.
+        if (pos < s_sleep_last_pos - 1 || pos > s_sleep_last_pos + 5) s_sleep_chapter = ci;
+        s_sleep_last_pos = pos;
+        left = ci != s_sleep_chapter ? 0 : end - pos;
+    }
+
+    if (left <= 0) {
+        ESP_LOGI(TAG, "sleep timer: pausing");
+        s_paused = true;
+        set_state(PLAYER_PAUSED);
+        sync_progress(true);
+        s_sleep_mode = PLAYER_SLEEP_OFF;
+        s_sleep_left = 0;
+        sleep_restore_volume();
+    } else if (left < SLEEP_FADE_S) {
+        board_audio_set_volume((int)(volume * left / SLEEP_FADE_S));
+        s_sleep_faded = true;
+    }
+    sleep_publish();
+}
+
 /* ---------- control task ---------- */
 
 static void handle(const cmd_t *c)
@@ -657,6 +755,11 @@ static void handle(const cmd_t *c)
         close_session();
         s_paused = false;
         set_state(PLAYER_IDLE);
+        sleep_set(0);
+        break;
+
+    case CMD_SLEEP:
+        sleep_set((int)c->arg);
         break;
 
     }
@@ -680,6 +783,7 @@ static void control_task(void *arg)
         if (st == PLAYER_PLAYING) {
             s_listen_since_sync += (now - s_last_tick_us) / 1e6;
         }
+        sleep_tick(st, (now - s_last_tick_us) / 1e6);
         s_last_tick_us = now;
 
 #ifdef PLAYER_STATUS_LOG  // define to log pipeline stats every second
@@ -781,6 +885,7 @@ void player_seek_relative(double seconds) { post(CMD_SEEK_REL, seconds); }
 void player_seek_to(double seconds) { post(CMD_SEEK_ABS, seconds); }
 void player_chapter_step(int delta) { post(CMD_CHAPTER, delta); }
 void player_stop(void) { post(CMD_STOP, 0); }
+void player_set_sleep(int minutes) { post(CMD_SLEEP, minutes); }
 
 void player_set_volume(int volume)
 {

@@ -8,6 +8,8 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "esp_netif_net_stack.h"
+#include "lwip/netif.h"
 
 static const char *TAG = "wifi";
 static EventGroupHandle_t s_events;
@@ -15,11 +17,26 @@ static EventGroupHandle_t s_events;
 #define BIT_FAILED    BIT1  // the last connection attempt ended in a disconnect
 
 static volatile bool s_auto_reconnect = true;  // off while setup is scanning or testing
+static esp_netif_t *s_sta;
+
+static esp_err_t no_ip6_autoconfig(void *ctx)
+{
+    struct netif *lwip = esp_netif_get_netif_impl(s_sta);
+    if (lwip) lwip->ip6_autoconfig_enabled = 0;
+    return ESP_OK;
+}
 
 static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
         if (s_auto_reconnect && config_get()->wifi_ssid[0]) esp_wifi_connect();
+    } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_CONNECTED) {
+        // A link-local IPv6 address lets mDNS answer AAAA queries for abspresso.local; without
+        // one, phones and Macs wait out a ~5 s IPv6 lookup before falling back to IPv4. Only
+        // link-local: routable addresses from the router's adverts may not be reachable on the
+        // LAN, and browsers that pick one then fail to connect.
+        esp_netif_tcpip_exec(no_ip6_autoconfig, NULL);  // lwIP state: change it on the TCP/IP task
+        esp_netif_create_ip6_linklocal(s_sta);
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         xEventGroupClearBits(s_events, BIT_CONNECTED);
         xEventGroupSetBits(s_events, BIT_FAILED);
@@ -39,8 +56,8 @@ esp_err_t wifi_start(void)
     s_events = xEventGroupCreate();
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_t *sta = esp_netif_create_default_wifi_sta();
-    esp_netif_set_hostname(sta, "abspresso");  // how it shows in the router's device list
+    s_sta = esp_netif_create_default_wifi_sta();
+    esp_netif_set_hostname(s_sta, "abspresso");  // how it shows in the router's device list
     esp_netif_create_default_wifi_ap();
 
     wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();

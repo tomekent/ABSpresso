@@ -85,7 +85,6 @@ bool ui_sheet_visible(void);
 int ui_find_book(const char *item_id);
 
 /* libraries (ui.c) */
-const abs_library_t *ui_libraries(int *count, const char **selected_id);
 bool ui_library_is_podcast(void);
 
 /* podcast episode list overlay (ui_episodes.c) */

@@ -68,3 +68,10 @@ CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
 # Internal RAM is the scarce resource: 16 static Wi-Fi TX buffers (1.6 KB each) is more than a
 # player that mostly downloads needs
 CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=8
+
+# mDNS (remote control at abspresso.local): keep its task and allocations out of internal RAM
+CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y
+CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y
+
+# Sockets: the remote control server holds up to 5 next to the five network tasks
+CONFIG_LWIP_MAX_SOCKETS=16

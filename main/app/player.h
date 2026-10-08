@@ -28,7 +28,12 @@ typedef struct {
     double chapter_end;
     int volume;             // 0-100
     int buffer_percent;
+    int sleep_mode;         // PLAYER_SLEEP_OFF, PLAYER_SLEEP_TIMER or PLAYER_SLEEP_CHAPTER
+    double sleep_left;      // seconds of playback until the sleep timer pauses
 } player_status_t;
+
+enum { PLAYER_SLEEP_OFF, PLAYER_SLEEP_TIMER, PLAYER_SLEEP_CHAPTER };
+#define PLAYER_SLEEP_END_OF_CHAPTER (-1)
 
 void player_init(void);
 
@@ -43,5 +48,9 @@ void player_seek_to(double seconds);
 void player_chapter_step(int delta);
 void player_stop(void);
 void player_set_volume(int volume);
+// Sleep timer: pauses after `minutes` of playback (the countdown stops while paused), fading
+// out over the last seconds. PLAYER_SLEEP_END_OF_CHAPTER pauses at the end of the current
+// chapter instead; 0 turns it off.
+void player_set_sleep(int minutes);
 
 void player_get_status(player_status_t *out);
