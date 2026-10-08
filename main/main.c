@@ -48,7 +48,12 @@ void app_main(void)
     ui_show_message("Connecting to Wi-Fi...");
     lvgl_port_unlock();
 
-    ESP_ERROR_CHECK(board_audio_init());
+    if (board_audio_init() != ESP_OK) {
+        // No sound, but the library, downloads, settings and setup still work: don't reboot-loop.
+        ESP_LOGE("main", "audio failed to start; carrying on without sound");
+        show_message("Audio didn't start, so there's no sound.\nRestart to try again.");
+        vTaskDelay(pdMS_TO_TICKS(3000));
+    }
     storage_init();
     battery_init();
     power_init();

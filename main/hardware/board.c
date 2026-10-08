@@ -340,6 +340,24 @@ void board_set_rotated(bool rotated)
     if (s_panel) esp_lcd_panel_mirror(s_panel, rotated, rotated);
 }
 
+static esp_err_t es8311_write(uint8_t reg, uint8_t val);
+
+// Codec power-down (Espressif's esp_codec_dev ES8311 suspend sequence): DAC muted, ADC and
+// analog off, then clocks off. The next boot runs the full init again.
+static void es8311_power_down(void)
+{
+    static const uint8_t seq[][2] = {
+        {0x32, 0x00}, {0x17, 0x00}, {0x0E, 0xFF}, {0x12, 0x02}, {0x14, 0x00},
+        {0x0D, 0xFA}, {0x15, 0x00}, {0x02, 0x10}, {0x00, 0x00}, {0x00, 0x1F},
+        {0x01, 0x30}, {0x01, 0x00}, {0x45, 0x00}, {0x0D, 0xFC}, {0x02, 0x00},
+    };
+    int failed = 0;
+    for (size_t i = 0; i < sizeof(seq) / sizeof(seq[0]); i++) {
+        if (es8311_write(seq[i][0], seq[i][1]) != ESP_OK) failed++;
+    }
+    if (failed) ESP_LOGW(TAG, "ES8311 power-down: %d writes failed", failed);
+}
+
 void board_prepare_deep_sleep(void)
 {
     board_set_backlight(0);
@@ -347,6 +365,13 @@ void board_prepare_deep_sleep(void)
     // Let the touch controller drop to its low-power scan; it still pulls INT low on a touch.
     uint8_t auto_sleep = 0x00;
     if (s_touch_io) esp_lcd_panel_io_tx_param(s_touch_io, 0xFE, &auto_sleep, 1);
+    if (s_es8311) {
+        es8311_power_down();
+        // Keep the amplifier off while asleep: a plain output stops being driven in deep sleep.
+        gpio_set_level(PIN_PA_EN, 0);
+        gpio_hold_en(PIN_PA_EN);
+        gpio_deep_sleep_hold_en();
+    }
 }
 
 esp_err_t board_display_init(lv_display_t **out_disp)
@@ -438,6 +463,8 @@ esp_err_t board_audio_init(void)
     const bool v2 = s_i2c_bus && i2c_master_probe(s_i2c_bus, ES8311_ADDR, 50) == ESP_OK;
     ESP_LOGI(TAG, "audio: %s", v2 ? "V2 board (ES8311)" : "V1 board (PCM5101)");
     if (v2) {
+        gpio_hold_dis(PIN_PA_EN);  // held low through the last deep sleep, if any
+        gpio_deep_sleep_hold_dis();
         const gpio_config_t pa = {.pin_bit_mask = BIT64(PIN_PA_EN), .mode = GPIO_MODE_OUTPUT};
         gpio_config(&pa);
         gpio_set_level(PIN_PA_EN, 0);
@@ -470,7 +497,13 @@ esp_err_t board_audio_init(void)
             .scl_speed_hz = 100000,
         };
         ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(s_i2c_bus, &dev_cfg, &s_es8311), TAG, "ES8311 device");
-        ESP_RETURN_ON_ERROR(es8311_init(), TAG, "ES8311 init");
+        esp_err_t err = es8311_init();
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "ES8311 init failed (%s); retrying", esp_err_to_name(err));
+            vTaskDelay(pdMS_TO_TICKS(50));
+            err = es8311_init();  // the register sequence starts with a reset, so it can simply rerun
+        }
+        ESP_RETURN_ON_ERROR(err, TAG, "ES8311 init");
     }
     return ESP_OK;
 }
